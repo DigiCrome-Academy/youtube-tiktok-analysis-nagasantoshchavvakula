@@ -1,3 +1,66 @@
+"""
+Script Name: app.py
+Project: YouTube & TikTok Trends Dashboard
+
+Purpose:
+    This script builds an interactive Streamlit dashboard for visualizing YouTube and TikTok trends.
+    It connects to the MySQL database containing processed social media data, loads the datasets
+    into Pandas DataFrames, and generates a series of interactive and static visualizations to 
+    analyze engagement metrics such as views, likes, dislikes, and comments.
+
+Workflow:
+    1. Load MySQL configuration details from `Dashboards/config_cleaned_datasets.ini`.
+    2. Establish a database connection using SQLAlchemy.
+    3. Automatically read all CSV files from `data/processed/` and load them into MySQL tables.
+    4. Retrieve a specific table from MySQL into a Pandas DataFrame for visualization.
+    5. Launch a Streamlit dashboard that:
+        - Displays platform and category-based filters in the sidebar.
+        - Shows the filtered dataset dynamically.
+        - Renders key visualizations:
+            a. Total Views by Platform (Plotly)
+            b. Likes vs Dislikes by Platform (Matplotlib)
+            c. Comments Distribution by Platform (Seaborn boxplot)
+    6. Apply a consistent corporate visualization theme using Seaborn and Matplotlib styling.
+
+Inputs:
+    - MySQL database tables (created from `data/processed/` CSVs)
+    - Configuration file: `Dashboards/config_cleaned_datasets.ini`
+        [mysql]
+        host = <database_host>
+        user = <username>
+        password = <password>
+        database = <database_name>
+
+Outputs:
+    - Streamlit web application displaying:
+        • Interactive data filters
+        • Aggregated analytics visualizations
+        • Dynamic data tables for exploration
+
+Dependencies:
+    - pandas
+    - sqlalchemy
+    - mysql-connector-python
+    - configparser
+    - matplotlib
+    - seaborn
+    - plotly
+    - streamlit
+    - os
+
+Usage:
+    Run the following command from the terminal:
+        streamlit run app.py
+
+    This will launch the dashboard locally, accessible via a browser at:
+        http://localhost:8501
+
+Notes:
+    - Ensure MySQL service is running and accessible before launching the dashboard.
+    - The config file must contain valid credentials and the database should exist.
+    - All processed CSVs in `data/processed/` will be automatically uploaded to MySQL tables.
+"""
+
 # ----------------------Importing Libraries---------------------- #
 import os
 import pandas as pd
