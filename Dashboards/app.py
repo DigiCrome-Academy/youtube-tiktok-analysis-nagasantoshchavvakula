@@ -20,7 +20,7 @@ Workflow:
             a. Total Views by Platform (Plotly)
             b. Likes vs Dislikes by Platform (Matplotlib)
             c. Comments Distribution by Platform (Seaborn boxplot)
-    6. Apply a consistent corporate visualization theme using Seaborn and Matplotlib styling.
+    6. Apply a consistent visualization theme using Seaborn and Matplotlib styling.
 
 Inputs:
     - MySQL database tables (created from `data/processed/` CSVs)
@@ -126,20 +126,35 @@ st.markdown("---")
 # Load Data
 df = load_table_from_mysql(table_name)
 
-# Sidebar filters
-st.sidebar.header("Filters")
+# 🌈 Stylish Sidebar Filters
+st.sidebar.markdown("## 🎛️ Data Filters")
+
+# Divider line
+st.sidebar.markdown("---")
+
+# Platform Filter
+st.sidebar.markdown("### 💻 Platform")
 selected_platform = st.sidebar.multiselect(
-    "Select Platform",
-    options=df['platform'].unique(),
-    default=df['platform'].unique()
-)
-selected_category = st.sidebar.multiselect(
-    "Select Category",
-    options=df['category'].unique(),
-    default=df['category'].unique()
+    "Choose one or more platforms:",
+    options=sorted(df['platform'].unique()),
+    default=df['platform'].unique(),
+    help="Filter data by platform (e.g., YouTube, Instagram, etc.)"
 )
 
-# Filter Data
+# Category Filter
+st.sidebar.markdown("### 🏷️ Category")
+selected_category = st.sidebar.multiselect(
+    "Choose one or more categories:",
+    options=sorted(df['category'].unique()),
+    default=df['category'].unique(),
+    help="Filter data by category type"
+)
+
+# Divider line
+st.sidebar.markdown("---")
+st.sidebar.info("✅ Use the filters above to customize your dashboard view.")
+
+# Filter the DataFrame
 filtered_df = df[
     (df['platform'].isin(selected_platform)) &
     (df['category'].isin(selected_category))
@@ -149,7 +164,7 @@ filtered_df = df[
 st.subheader("📄 Filtered Data")
 st.dataframe(filtered_df)
 
-# Apply corporate theme (minimal)
+# Apply theme (minimal)
 sns.set_style("whitegrid")
 plt.rcParams.update({
     "font.size": 10,
