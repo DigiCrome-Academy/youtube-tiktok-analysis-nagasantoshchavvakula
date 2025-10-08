@@ -103,7 +103,7 @@ print(" ")
 
 #-------------------------------------------
 # Load processed data from MySQL
-#-------------------------------------------#
+#-------------------------------------------
 def load_table_from_mysql(table_name):
     query = f"SELECT * FROM {table_name}"
     df = pd.read_sql(query, connection)
@@ -122,7 +122,7 @@ import plotly.express as px
 st.set_page_config(page_title="YouTube & TikTok Trends Dashboard", layout="wide")
 st.title("📊 YouTube & TikTok Trends Dashboard")
 st.markdown("Interactive dashboard visualizing trends from YouTube and TikTok data.")
-
+st.markdown("---")
 # Load Data
 df = load_table_from_mysql(table_name)
 
@@ -212,5 +212,78 @@ ax.set_ylabel("Number of Comments", fontsize=10)
 ax.set_xlabel("Platform", fontsize=10)
 sns.despine()
 st.pyplot(fig3)
+
+# ------------------------
+# Plot 4: Top 10 Videos by Views (Plotly)
+# ------------------------
+st.subheader("🏆 Top 10 Videos by Views")
+top_videos = filtered_df.nlargest(10, 'views')[['title', 'views', 'platform']]
+fig4 = px.bar(
+    top_videos,
+    x='views', y='title', color='platform',
+    orientation='h',
+    title="Top 10 Videos by Views",
+    labels={"views":"Views", "title":"Video Title", "platform":"Platform"},
+    color_discrete_sequence=px.colors.qualitative.Set2
+)
+fig4.update_layout(
+    width=550, height=350,
+    margin=dict(l=40, r=40, t=50, b=40),
+    title_x=0.5,
+    showlegend=True,
+    font=dict(size=11)
+)
+st.plotly_chart(fig4, use_container_width=False)
+
+# ------------------------
+# Plot 5: Engagement Rate by Platform (Matplotlib)
+# ------------------------
+st.subheader("📊 Engagement Rate by Platform")
+engagement = filtered_df.groupby('platform').agg({
+    'views': 'sum',
+    'likes': 'sum',
+    'dislikes': 'sum',
+    'comments': 'sum'
+}).reset_index()
+engagement['engagement_rate'] = (engagement['likes'] + engagement['comments']) / engagement['views'] * 100
+fig5, ax = plt.subplots(figsize=(5.5,3.2))  # smaller fixed size
+engagement.plot(
+    kind='bar', x='platform', y='engagement_rate', ax=ax,
+    color="#2ca02c", alpha=0.9
+)
+ax.set_title("Engagement Rate by Platform (%)", fontsize=12, pad=8)
+ax.set_ylabel("Engagement Rate (%)", fontsize=10)
+ax.set_xlabel("Platform", fontsize=10)
+ax.legend(frameon=False, loc="upper right")
+sns.despine()
+st.pyplot(fig5)
+
+# ------------------------
+# Plot 6: Category Distribution (Seaborn)
+# ------------------------
+st.subheader("📂 Category Distribution")
+fig6, ax = plt.subplots(figsize=(5.5,3.2))  # smaller fixed size
+sns.countplot(
+    data=filtered_df, x='category',
+    palette="Set2", ax=ax,
+    order=filtered_df['category'].value_counts().index
+)
+ax.set_title("Number of Videos by Category", fontsize=12, pad=8)
+ax.set_ylabel("Number of Videos", fontsize=10)
+ax.set_xlabel("Category", fontsize=10)
+plt.xticks(rotation=45, ha='right')
+sns.despine()
+st.pyplot(fig6)
+
+# ------------------------
+# Footer
+# ------------------------
+st.markdown("---")
+st.markdown("Developed by Nagasantosh Chandrashekar | Data Source: YouTube & TikTok APIs")
+st.markdown("© 2025 Digicrome. All rights reserved.")
+st.markdown(" ")
+
+# End of Script
+
 
 
