@@ -4,3 +4,7 @@ numpy
 streamlit
 dvc
 sqlalchemy
+plotly
+scikit-learn
+matplotlib
+seaborn
