@@ -4,12 +4,12 @@ Project: YouTube & TikTok Trends Dashboard
 
 Purpose:
     This script builds an interactive Streamlit dashboard for visualizing YouTube and TikTok trends.
-    It connects to the MySQL database containing processed social media data, loads the datasets
-    into Pandas DataFrames, and generates a series of interactive and static visualizations to 
+    It connects to a MySQL database containing processed social media data, loads CSV datasets
+    into MySQL tables automatically, and generates interactive and static visualizations to 
     analyze engagement metrics such as views, likes, dislikes, and comments.
 
 Workflow:
-    1. Load MySQL configuration details from `Dashboards/config_cleaned_datasets.ini`.
+    1. Load MySQL credentials securely from Streamlit's Secrets Manager (`st.secrets`).
     2. Establish a database connection using SQLAlchemy.
     3. Automatically read all CSV files from `data/processed/` and load them into MySQL tables.
     4. Retrieve a specific table from MySQL into a Pandas DataFrame for visualization.
@@ -20,11 +20,15 @@ Workflow:
             a. Total Views by Platform (Plotly)
             b. Likes vs Dislikes by Platform (Matplotlib)
             c. Comments Distribution by Platform (Seaborn boxplot)
+            d. Top 10 Videos by Views (Plotly horizontal bar)
+            e. Engagement Rate by Platform (Matplotlib)
+            f. Category Distribution (Seaborn countplot)
     6. Apply a consistent visualization theme using Seaborn and Matplotlib styling.
+    7. Cache MySQL data for 10 minutes to improve dashboard performance.
 
 Inputs:
-    - MySQL database tables (created from `data/processed/` CSVs)
-    - Configuration file: `Dashboards/config_cleaned_datasets.ini`
+    - MySQL database tables (created from `data/processed/` CSV files)
+    - Streamlit Secrets for database credentials:
         [mysql]
         host = <database_host>
         user = <username>
@@ -41,11 +45,10 @@ Dependencies:
     - pandas
     - sqlalchemy
     - mysql-connector-python
-    - configparser
+    - streamlit
     - matplotlib
     - seaborn
     - plotly
-    - streamlit
     - os
 
 Usage:
@@ -57,8 +60,9 @@ Usage:
 
 Notes:
     - Ensure MySQL service is running and accessible before launching the dashboard.
-    - The config file must contain valid credentials and the database should exist.
-    - All processed CSVs in `data/processed/` will be automatically uploaded to MySQL tables.
+    - Streamlit Secrets must contain valid database credentials.
+    - All processed CSVs in `data/processed/` are automatically uploaded to MySQL tables.
+    - Cached data improves performance but will refresh every 10 minutes.
 """
 
 # ----------------------Importing Libraries---------------------- #
@@ -66,18 +70,40 @@ import os
 import pandas as pd
 from sqlalchemy import create_engine
 import configparser
-import plotly.express as px
-import matplotlib.pyplot as plt
+import streamlit as st
 import seaborn as sns
+import matplotlib.pyplot as plt
+import plotly.express as px
 
-# ----------------------Configuration Setup---------------------- #
-config = configparser.ConfigParser()
-config.read('Dashboards/config_cleaned_datasets.ini') # Adjusted path to config.ini
-db_config = config['mysql']
-DB_HOST = db_config['host']
-DB_USER = db_config['user']
-DB_PASSWORD = db_config['password']
-DB_NAME = db_config['database']
+# ---------------- Step 1: Print Current Working Directory ----------------
+print("CWD:", os.getcwd())
+print("Files:", os.listdir())
+
+# ---------------- Step 2: Verify secrets file path (local only) ----------------
+# This is only for local debugging — Streamlit Cloud uses its built-in Secrets Manager
+secrets_path = os.path.join(os.getcwd(), "Dashboards", ".streamlit", "secrets.toml")
+print("Looking for secrets file at:", secrets_path)
+print("Secrets file exists:", os.path.exists(secrets_path))
+
+# ---------------- Step 3: Load MySQL credentials from Streamlit secrets ----------------
+try:
+    db_config = st.secrets["mysql"]
+
+    DB_HOST = db_config["host"]
+    DB_USER = db_config["user"]
+    DB_PASSWORD = db_config["password"]
+    DB_NAME = db_config["database"]
+
+    # ---------------- Step 4: Print confirmation ----------------
+    print("✅ MySQL Configuration loaded successfully:")
+    print(f"Host: {DB_HOST}")
+    print(f"User: {DB_USER}")
+    print(f"Database: {DB_NAME}")
+
+except Exception as e:
+    st.error(f"❌ Failed to load database configuration: {e}")
+    print("❌ Error loading Streamlit secrets:", e)
+
 # ----------------------Database Connection---------------------- #
 engine = create_engine(f'mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}') #SQLAlchemy engine URL: "mysql+mysqlconnector://<user>:<password>@<host>/<database>"
 connection = engine.connect()
@@ -92,8 +118,15 @@ for file in csv_files:
     print(f"Read {file} into DataFrame with shape {df.shape}") # Print read status and shape of DataFrame
 # ----------------------Create table in MySQL and load data from DataFrame into MySQL table----------------------- #
     table_name = os.path.splitext(file)[0].lower() # Table name derived from file name in lowercase for consistency
-    df.to_sql(name=table_name, con=engine, if_exists='replace', index=False) # Load DataFrame into MySQL table
-    print(f"Loaded data into table '{table_name}' in the database.")
+
+    try:
+        df.to_sql(name=table_name, con=engine, if_exists='replace', index=False) # Load DataFrame into MySQL table
+        print(f"Loaded data into table '{table_name}' in the database.")
+    except Exception as e:
+        print(f"Error loading data into table '{table_name}': {e}")
+
+    # df.to_sql(name=table_name, con=engine, if_exists='replace', index=False) # Load DataFrame into MySQL table
+    # print(f"Loaded data into table '{table_name}' in the database.")
     print(" ")
     # list tables in the database to verify
 tables = pd.read_sql("SHOW TABLES", connection)
@@ -104,19 +137,16 @@ print(" ")
 #-------------------------------------------
 # Load processed data from MySQL
 #-------------------------------------------
+@st.cache_data(ttl=600)  # Cache the data for 10 minutes to improve performance
 def load_table_from_mysql(table_name):
     query = f"SELECT * FROM {table_name}"
     df = pd.read_sql(query, connection)
-    connection.close() # Close the connection after loading data
     print(f"Loaded table {table_name} from MySQL into DataFrame with shape {df.shape}")
     return df
+
 # ----------------------------------------------------------
 # Streamlit Dashboard and Visualizations
 # ---------------------------------------------------------- 
-import streamlit as st
-import seaborn as sns
-import matplotlib.pyplot as plt
-import plotly.express as px
 
 # Page settings
 st.set_page_config(page_title="YouTube & TikTok Trends Dashboard", layout="wide")
@@ -199,19 +229,25 @@ st.plotly_chart(fig1, use_container_width=False)
 # Plot 2: Likes vs Dislikes (Matplotlib)
 # ------------------------
 st.subheader("👍 Likes vs 👎 Dislikes")
+
+# Group data by platform and sum likes/dislikes
 likes_dislikes = filtered_df.groupby('platform')[['likes', 'dislikes']].sum().reset_index()
 
-fig2, ax = plt.subplots(figsize=(5.5,3.2))  # smaller fixed size
-likes_dislikes.plot(
-    kind='bar', x='platform', y=['likes', 'dislikes'], ax=ax,
-    color=["#1f77b4", "#ff7f0e"], alpha=0.9
-)
-ax.set_title("Total Likes vs Dislikes by Platform", fontsize=12, pad=8)
-ax.set_ylabel("Count", fontsize=10)
-ax.set_xlabel("Platform", fontsize=10)
-ax.legend(frameon=False, loc="upper right")
-sns.despine()
-st.pyplot(fig2)
+# Check if there's data to plot
+if likes_dislikes.empty:
+    st.warning("⚠️ No data available for the selected filters.")
+else:
+    fig2, ax = plt.subplots(figsize=(5.5, 3.2))  # smaller fixed size
+    likes_dislikes.plot(
+        kind='bar', x='platform', y=['likes', 'dislikes'], ax=ax,
+        color=["#1f77b4", "#ff7f0e"], alpha=0.9
+    )
+    ax.set_title("Total Likes vs Dislikes by Platform", fontsize=12, pad=8)
+    ax.set_ylabel("Count", fontsize=10)
+    ax.set_xlabel("Platform", fontsize=10)
+    ax.legend(frameon=False, loc="upper right")
+    sns.despine()
+    st.pyplot(fig2)
 
 # ------------------------
 # Plot 3: Comments Distribution (Seaborn)
@@ -298,7 +334,11 @@ st.markdown("Developed by Nagasantosh Chandrashekar | Data Source: YouTube & Tik
 st.markdown("© 2025 Digicrome. All rights reserved.")
 st.markdown(" ")
 
-# End of Script
+# ----------------------End of Dashboard---------------------- #
 
+# Closing DB connection
+connection.close()
+print("Database connection closed.")
+print(" ")
 
 
