@@ -3,3 +3,4 @@ venv
 venv/
 .venv/
 Dashboards/*.ini
+Dashboards/.streamlit/secrets.toml
