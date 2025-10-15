@@ -125,8 +125,6 @@ for file in csv_files:
     except Exception as e:
         print(f"Error loading data into table '{table_name}': {e}")
 
-    # df.to_sql(name=table_name, con=engine, if_exists='replace', index=False) # Load DataFrame into MySQL table
-    # print(f"Loaded data into table '{table_name}' in the database.")
     print(" ")
     # list tables in the database to verify
 tables = pd.read_sql("SHOW TABLES", connection)
