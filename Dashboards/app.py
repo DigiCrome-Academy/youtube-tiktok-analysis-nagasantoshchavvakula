@@ -3,340 +3,201 @@ Script Name: app.py
 Project: YouTube & TikTok Trends Dashboard
 
 Purpose:
-    This script builds an interactive Streamlit dashboard for visualizing YouTube and TikTok trends.
-    It connects to a MySQL database containing processed social media data, loads CSV datasets
-    into MySQL tables automatically, and generates interactive and static visualizations to 
-    analyze engagement metrics such as views, likes, dislikes, and comments.
+    Corporate-grade Streamlit dashboard for visualizing YouTube and TikTok trends
+    directly from cleaned CSV files in `data/processed/`.
 
-Workflow:
-    1. Load MySQL credentials securely from Streamlit's Secrets Manager (`st.secrets`).
-    2. Establish a database connection using SQLAlchemy.
-    3. Automatically read all CSV files from `data/processed/` and load them into MySQL tables.
-    4. Retrieve a specific table from MySQL into a Pandas DataFrame for visualization.
-    5. Launch a Streamlit dashboard that:
-        - Displays platform and category-based filters in the sidebar.
-        - Shows the filtered dataset dynamically.
-        - Renders key visualizations:
-            a. Total Views by Platform (Plotly)
-            b. Likes vs Dislikes by Platform (Matplotlib)
-            c. Comments Distribution by Platform (Seaborn boxplot)
-            d. Top 10 Videos by Views (Plotly horizontal bar)
-            e. Engagement Rate by Platform (Matplotlib)
-            f. Category Distribution (Seaborn countplot)
-    6. Apply a consistent visualization theme using Seaborn and Matplotlib styling.
-    7. Cache MySQL data for 10 minutes to improve dashboard performance.
-
-Inputs:
-    - MySQL database tables (created from `data/processed/` CSV files)
-    - Streamlit Secrets for database credentials:
-        [mysql]
-        host = <database_host>
-        user = <username>
-        password = <password>
-        database = <database_name>
-
-Outputs:
-    - Streamlit web application displaying:
-        • Interactive data filters
-        • Aggregated analytics visualizations
-        • Dynamic data tables for exploration
-
-Dependencies:
-    - pandas
-    - sqlalchemy
-    - mysql-connector-python
-    - streamlit
-    - matplotlib
-    - seaborn
-    - plotly
-    - os
-
-Usage:
-    Run the following command from the terminal:
-        streamlit run app.py
-
-    This will launch the dashboard locally, accessible via a browser at:
-        http://localhost:8501
-
-Notes:
-    - Ensure MySQL service is running and accessible before launching the dashboard.
-    - Streamlit Secrets must contain valid database credentials.
-    - All processed CSVs in `data/processed/` are automatically uploaded to MySQL tables.
-    - Cached data improves performance but will refresh every 10 minutes.
+Features:
+    - Dataset selection
+    - Dynamic filters for platform and category
+    - Top N videos selection
+    - Interactive and corporate-style visualizations
+    - KPIs at the top
+    - Cached data for performance
 """
 
-# ----------------------Importing Libraries---------------------- #
+# ---------------------- Import Libraries ---------------------- #
 import os
 import pandas as pd
-from sqlalchemy import create_engine
-import configparser
 import streamlit as st
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
 import plotly.express as px
 
-# ---------------- Step 1: Print Current Working Directory ----------------
-print("CWD:", os.getcwd())
-print("Files:", os.listdir())
+# ---------------------- Page Configuration ---------------------- #
+st.set_page_config(
+    page_title="📊 YouTube & TikTok Trends Dashboard",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# ---------------- Step 2: Verify secrets file path (local only) ----------------
-# This is only for local debugging — Streamlit Cloud uses its built-in Secrets Manager
-secrets_path = os.path.join(os.getcwd(), "Dashboards", ".streamlit", "secrets.toml")
-print("Looking for secrets file at:", secrets_path)
-print("Secrets file exists:", os.path.exists(secrets_path))
+# ---------------------- Dashboard Header ---------------------- #
+st.markdown("""
+<style>
+h1 {
+    color: #2F4F4F;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+</style>
+""", unsafe_allow_html=True)
 
-# ---------------- Step 3: Load MySQL credentials from Streamlit secrets ----------------
-try:
-    db_config = st.secrets["mysql"]
-
-    DB_HOST = db_config["host"]
-    DB_USER = db_config["user"]
-    DB_PASSWORD = db_config["password"]
-    DB_NAME = db_config["database"]
-
-    # ---------------- Step 4: Print confirmation ----------------
-    print("✅ MySQL Configuration loaded successfully:")
-    print(f"Host: {DB_HOST}")
-    print(f"User: {DB_USER}")
-    print(f"Database: {DB_NAME}")
-
-except Exception as e:
-    st.error(f"❌ Failed to load database configuration: {e}")
-    print("❌ Error loading Streamlit secrets:", e)
-
-# ----------------------Database Connection---------------------- #
-engine = create_engine(f'mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}') #SQLAlchemy engine URL: "mysql+mysqlconnector://<user>:<password>@<host>/<database>"
-connection = engine.connect()
-print("Connected to the database successfully.")
-print(" ")
-# ---------- Loading datasets from data/processed to MySQL database ----------------------- #
-data_dir = 'data/processed/'
-csv_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')] # List of CSV files in the directory
-for file in csv_files:
-    file_path = os.path.join(data_dir, file) # Full path to the CSV file 
-    df = pd.read_csv(file_path) # Read CSV into DataFrame
-    print(f"Read {file} into DataFrame with shape {df.shape}") # Print read status and shape of DataFrame
-# ----------------------Create table in MySQL and load data from DataFrame into MySQL table----------------------- #
-    table_name = os.path.splitext(file)[0].lower() # Table name derived from file name in lowercase for consistency
-
-    try:
-        df.to_sql(name=table_name, con=engine, if_exists='replace', index=False) # Load DataFrame into MySQL table
-        print(f"Loaded data into table '{table_name}' in the database.")
-    except Exception as e:
-        print(f"Error loading data into table '{table_name}': {e}")
-
-    print(" ")
-    # list tables in the database to verify
-tables = pd.read_sql("SHOW TABLES", connection)
-table_list = tables.iloc[:,0].tolist() # List of table names
-print(f"Current tables in the database: {table_list}")
-print(" ")
-
-#-------------------------------------------
-# Load processed data from MySQL
-#-------------------------------------------
-@st.cache_data(ttl=600)  # Cache the data for 10 minutes to improve performance
-def load_table_from_mysql(table_name):
-    query = f"SELECT * FROM {table_name}"
-    df = pd.read_sql(query, connection)
-    print(f"Loaded table {table_name} from MySQL into DataFrame with shape {df.shape}")
-    return df
-
-# ----------------------------------------------------------
-# Streamlit Dashboard and Visualizations
-# ---------------------------------------------------------- 
-
-# Page settings
-st.set_page_config(page_title="YouTube & TikTok Trends Dashboard", layout="wide")
 st.title("📊 YouTube & TikTok Trends Dashboard")
-st.markdown("Interactive dashboard visualizing trends from YouTube and TikTok data.")
+st.markdown(
+    "Explore and analyze engagement metrics from YouTube and TikTok datasets "
+    "with interactive filters and professional visualizations."
+)
 st.markdown("---")
-# Load Data
-df = load_table_from_mysql(table_name)
 
-# 🌈 Stylish Sidebar Filters
-st.sidebar.markdown("## 🎛️ Data Filters")
+# ---------------------- Load CSV Datasets ---------------------- #
+data_dir = 'data/processed/'
+csv_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')]
 
-# Divider line
+if not csv_files:
+    st.error("No CSV files found in `data/processed/`. Please add processed datasets.")
+    st.stop()
+
+@st.cache_data(ttl=600)
+def load_csv_files(files):
+    dataframes = {}
+    for file in files:
+        path = os.path.join(data_dir, file)
+        try:
+            df = pd.read_csv(path)
+            dataframes[file] = df
+        except Exception as e:
+            st.warning(f"Could not load {file}: {e}")
+    return dataframes
+
+dataframes = load_csv_files(csv_files)
+
+# ------------------------------------- Sidebar ---------------------------------------------------------- #
+st.sidebar.title("Dashboard Controls")
+st.sidebar.markdown("## 📂 Dataset & Filters")
+
+# Dataset selection
+dataset_name = st.sidebar.selectbox("Select Dataset", list(dataframes.keys()))
+df = dataframes[dataset_name]
+# ---------------------- Display Selected Dataset ---------------------- #
+st.markdown(f"### 📂 Selected Dataset: `{dataset_name}`")
+st.markdown(f"**Total Rows:** {df.shape[0]} | **Total Columns:** {df.shape[1]}")
+st.dataframe(df.head(10))  # Show first 10 rows for preview
+st.markdown("---")
+
+# Platform filter
+platform_options = df['platform'].unique() if 'platform' in df.columns else []
+selected_platform = st.sidebar.multiselect("Filter by Platform", options=platform_options, default=platform_options)
+
+# Category filter
+category_options = df['category'].unique() if 'category' in df.columns else []
+selected_category = st.sidebar.multiselect("Filter by Category", options=category_options, default=category_options)
+
+# Number of top videos
+top_n = st.sidebar.slider("Number of Top Videos to Display", min_value=5, max_value=20, value=10, step=1)
+
+# ---------------------- Toggle Visualizations ---------------------- #
 st.sidebar.markdown("---")
+st.sidebar.markdown("### Toggle Charts")
 
-# Platform Filter
-st.sidebar.markdown("### 💻 Platform")
-selected_platform = st.sidebar.multiselect(
-    "Choose one or more platforms:",
-    options=sorted(df['platform'].unique()),
-    default=df['platform'].unique(),
-    help="Filter data by platform (e.g., YouTube, Instagram, etc.)"
-)
+# Master "Select All" checkbox
+select_all = st.sidebar.checkbox("Select/Deselect All Charts", value=True)
 
-# Category Filter
-st.sidebar.markdown("### 🏷️ Category")
-selected_category = st.sidebar.multiselect(
-    "Choose one or more categories:",
-    options=sorted(df['category'].unique()),
-    default=df['category'].unique(),
-    help="Filter data by category type"
-)
+# Individual chart checkboxes
+show_views_platform = st.sidebar.checkbox("Views by Platform", value=select_all)
+show_views_category = st.sidebar.checkbox("Views by Category", value=select_all)
+show_likes_dislikes = st.sidebar.checkbox("Likes vs Dislikes", value=select_all)
+show_comments = st.sidebar.checkbox("Comments Distribution", value=select_all)
+show_engagement = st.sidebar.checkbox("Engagement Rate", value=select_all)
+show_top_videos = st.sidebar.checkbox("Top Videos", value=select_all)
+show_category_dist = st.sidebar.checkbox("Category Distribution", value=select_all)
 
-# Divider line
-st.sidebar.markdown("---")
-st.sidebar.info("✅ Use the filters above to customize your dashboard view.")
 
-# Filter the DataFrame
-filtered_df = df[
-    (df['platform'].isin(selected_platform)) &
-    (df['category'].isin(selected_category))
-]
+# ---------------------- Apply Filters ---------------------- #
+filtered_df = df.copy()
+if selected_platform:
+    filtered_df = filtered_df[filtered_df['platform'].isin(selected_platform)]
+if selected_category:
+    filtered_df = filtered_df[filtered_df['category'].isin(selected_category)]
 
-# Show filtered DataFrame
-st.subheader("📄 Filtered Data")
-st.dataframe(filtered_df)
+# ---------------------- Dashboard Metrics ---------------------- #
+st.markdown("### 📈 Key Metrics")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Total Videos", filtered_df.shape[0])
+col2.metric("Total Views", int(filtered_df['views'].sum()) if 'views' in filtered_df.columns else 0)
+col3.metric("Total Likes", int(filtered_df['likes'].sum()) if 'likes' in filtered_df.columns else 0)
+col4.metric("Total Comments", int(filtered_df['comments'].sum()) if 'comments' in filtered_df.columns else 0)
 
-# Apply theme (minimal)
+st.markdown("---")
+
+# ---------------------- Visualizations ---------------------- #
 sns.set_style("whitegrid")
-plt.rcParams.update({
-    "font.size": 10,
-    "axes.titlesize": 12,
-    "axes.labelsize": 10,
-    "legend.fontsize": 9
-})
+plt.rcParams.update({"font.size": 10, "axes.titlesize": 12, "axes.labelsize": 10, "legend.fontsize": 9})
+CORP_COLORS = px.colors.qualitative.Pastel
 
-# ------------------------
-# Plot 1: Views by Platform (Plotly)
-# ------------------------
-st.subheader("📈 Total Views by Platform")
-views_by_platform = filtered_df.groupby('platform')['views'].sum().reset_index()
+# Views by Category
+if show_views_category and 'category' in filtered_df.columns and 'views' in filtered_df.columns:
+    st.subheader("📊 Total Views by Category")
+    views_category = filtered_df.groupby('category')['views'].sum().reset_index()
+    fig = px.bar(views_category, x='category', y='views', color='category', title="Total Views by Category", color_discrete_sequence=CORP_COLORS)
+    st.plotly_chart(fig, use_container_width=True)
 
-fig1 = px.bar(
-    views_by_platform,
-    x='platform', y='views', color='platform',
-    title="Total Views by Platform",
-    labels={"views":"Total Views", "platform":"Platform"},
-    color_discrete_sequence=px.colors.qualitative.Set2
-)
-fig1.update_layout(
-    width=550, height=350,
-    margin=dict(l=40, r=40, t=50, b=40),
-    title_x=0.5,  # center title
-    showlegend=False,
-    font=dict(size=11)
-)
-st.plotly_chart(fig1, use_container_width=False)
+# Views by Platform
+if show_views_platform and 'platform' in filtered_df.columns and 'views' in filtered_df.columns:
+    st.subheader("📈 Total Views by Platform")
+    views_platform = filtered_df.groupby('platform')['views'].sum().reset_index()
+    fig = px.bar(views_platform, x='platform', y='views', color='platform', title="Total Views by Platform", color_discrete_sequence=CORP_COLORS)
+    st.plotly_chart(fig, use_container_width=True)
 
-# ------------------------
-# Plot 2: Likes vs Dislikes (Matplotlib)
-# ------------------------
-st.subheader("👍 Likes vs 👎 Dislikes")
-
-# Group data by platform and sum likes/dislikes
-likes_dislikes = filtered_df.groupby('platform')[['likes', 'dislikes']].sum().reset_index()
-
-# Check if there's data to plot
-if likes_dislikes.empty:
-    st.warning("⚠️ No data available for the selected filters.")
-else:
-    fig2, ax = plt.subplots(figsize=(5.5, 3.2))  # smaller fixed size
-    likes_dislikes.plot(
-        kind='bar', x='platform', y=['likes', 'dislikes'], ax=ax,
-        color=["#1f77b4", "#ff7f0e"], alpha=0.9
-    )
-    ax.set_title("Total Likes vs Dislikes by Platform", fontsize=12, pad=8)
-    ax.set_ylabel("Count", fontsize=10)
-    ax.set_xlabel("Platform", fontsize=10)
-    ax.legend(frameon=False, loc="upper right")
+# Likes vs Dislikes
+if show_likes_dislikes and all(col in filtered_df.columns for col in ['platform','likes','dislikes']):
+    st.subheader("👍 Likes vs 👎 Dislikes")
+    likes_dis_df = filtered_df.groupby('platform')[['likes','dislikes']].sum().reset_index()
+    fig, ax = plt.subplots(figsize=(7,4))
+    likes_dis_df.plot(kind='bar', x='platform', y=['likes','dislikes'], ax=ax, color=["#4B8BBE","#FFB347"], alpha=0.9)
+    ax.set_title("Likes vs Dislikes by Platform")
+    ax.set_ylabel("Count"); ax.set_xlabel("Platform")
     sns.despine()
-    st.pyplot(fig2)
+    st.pyplot(fig)
 
-# ------------------------
-# Plot 3: Comments Distribution (Seaborn)
-# ------------------------
-st.subheader("💬 Comments Distribution by Platform")
-fig3, ax = plt.subplots(figsize=(5.5,3.2))  # smaller fixed size
-sns.boxplot(
-    data=filtered_df, x='platform', y='comments',
-    palette="Set2", ax=ax
-)
-ax.set_title("Comments Distribution by Platform", fontsize=12, pad=8)
-ax.set_ylabel("Number of Comments", fontsize=10)
-ax.set_xlabel("Platform", fontsize=10)
-sns.despine()
-st.pyplot(fig3)
+# Comments Distribution
+if show_comments and all(col in filtered_df.columns for col in ['platform','comments']):
+    st.subheader("💬 Comments Distribution by Platform")
+    fig, ax = plt.subplots(figsize=(7,4))
+    sns.boxplot(data=filtered_df, x='platform', y='comments', palette="Pastel2", ax=ax)
+    ax.set_title("Comments Distribution")
+    ax.set_ylabel("Number of Comments"); ax.set_xlabel("Platform")
+    sns.despine()
+    st.pyplot(fig)
 
-# ------------------------
-# Plot 4: Top 10 Videos by Views (Plotly)
-# ------------------------
-st.subheader("🏆 Top 10 Videos by Views")
-top_videos = filtered_df.nlargest(10, 'views')[['title', 'views', 'platform']]
-fig4 = px.bar(
-    top_videos,
-    x='views', y='title', color='platform',
-    orientation='h',
-    title="Top 10 Videos by Views",
-    labels={"views":"Views", "title":"Video Title", "platform":"Platform"},
-    color_discrete_sequence=px.colors.qualitative.Set2
-)
-fig4.update_layout(
-    width=550, height=350,
-    margin=dict(l=40, r=40, t=50, b=40),
-    title_x=0.5,
-    showlegend=True,
-    font=dict(size=11)
-)
-st.plotly_chart(fig4, use_container_width=False)
+# Engagement Rate
+if show_engagement and all(col in filtered_df.columns for col in ['platform','views','likes','comments']):
+    st.subheader("📊 Engagement Rate by Platform")
+    eng_df = filtered_df.groupby('platform').agg({'views':'sum','likes':'sum','comments':'sum'}).reset_index()
+    eng_df['engagement_rate'] = (eng_df['likes'] + eng_df['comments']) / eng_df['views'] * 100
+    fig, ax = plt.subplots(figsize=(7,4))
+    eng_df.plot(kind='bar', x='platform', y='engagement_rate', ax=ax, color="#2ca02c", alpha=0.9)
+    ax.set_ylabel("Engagement Rate (%)"); ax.set_xlabel("Platform")
+    ax.set_title("Engagement Rate by Platform")
+    sns.despine()
+    st.pyplot(fig)
 
-# ------------------------
-# Plot 5: Engagement Rate by Platform (Matplotlib)
-# ------------------------
-st.subheader("📊 Engagement Rate by Platform")
-engagement = filtered_df.groupby('platform').agg({
-    'views': 'sum',
-    'likes': 'sum',
-    'dislikes': 'sum',
-    'comments': 'sum'
-}).reset_index()
-engagement['engagement_rate'] = (engagement['likes'] + engagement['comments']) / engagement['views'] * 100
-fig5, ax = plt.subplots(figsize=(5.5,3.2))  # smaller fixed size
-engagement.plot(
-    kind='bar', x='platform', y='engagement_rate', ax=ax,
-    color="#2ca02c", alpha=0.9
-)
-ax.set_title("Engagement Rate by Platform (%)", fontsize=12, pad=8)
-ax.set_ylabel("Engagement Rate (%)", fontsize=10)
-ax.set_xlabel("Platform", fontsize=10)
-ax.legend(frameon=False, loc="upper right")
-sns.despine()
-st.pyplot(fig5)
+# Top N Videos
+if show_top_videos and 'views' in filtered_df.columns and 'title' in filtered_df.columns:
+    st.subheader(f"🏆 Top {top_n} Videos by Views")
+    top_videos = filtered_df.nlargest(top_n, 'views')[['title','views','platform']]
+    fig = px.bar(top_videos, x='views', y='title', color='platform', orientation='h', title=f"Top {top_n} Videos by Views", color_discrete_sequence=CORP_COLORS)
+    st.plotly_chart(fig, use_container_width=True)
 
-# ------------------------
-# Plot 6: Category Distribution (Seaborn)
-# ------------------------
-st.subheader("📂 Category Distribution")
-fig6, ax = plt.subplots(figsize=(5.5,3.2))  # smaller fixed size
-sns.countplot(
-    data=filtered_df, x='category',
-    palette="Set2", ax=ax,
-    order=filtered_df['category'].value_counts().index
-)
-ax.set_title("Number of Videos by Category", fontsize=12, pad=8)
-ax.set_ylabel("Number of Videos", fontsize=10)
-ax.set_xlabel("Category", fontsize=10)
-plt.xticks(rotation=45, ha='right')
-sns.despine()
-st.pyplot(fig6)
+# Category Distribution
+if show_category_dist and 'category' in filtered_df.columns:
+    st.subheader("📂 Category Distribution")
+    fig, ax = plt.subplots(figsize=(8,4))
+    sns.countplot(data=filtered_df, x='category', palette="Set2", order=filtered_df['category'].value_counts().index, ax=ax)
+    ax.set_title("Number of Videos by Category")
+    plt.xticks(rotation=45, ha='right')
+    sns.despine()
+    st.pyplot(fig)
 
-# ------------------------
-# Footer
-# ------------------------
+# ---------------------- Footer ---------------------- #
 st.markdown("---")
-st.markdown("Developed by Nagasantosh Chandrashekar | Data Source: YouTube & TikTok APIs")
+st.markdown("Developed by Nagasantosh Chandrashekar Chavvakula")
 st.markdown("© 2025 Digicrome. All rights reserved.")
 st.markdown(" ")
-
-# ----------------------End of Dashboard---------------------- #
-
-# Closing DB connection
-connection.close()
-print("Database connection closed.")
-print(" ")
-
-
