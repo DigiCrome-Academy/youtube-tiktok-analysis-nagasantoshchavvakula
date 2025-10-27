@@ -58,12 +58,14 @@ st.markdown(
 )
 st.markdown("---")
 
-# ---------------------- Load CSV Datasets ---------------------- #
-data_dir = 'data/processed/'
+# Loading datasets from data/processed/ whuch is outside Dashboards folder
+data_dir = os.path.join("data", "processed")
+if not os.path.exists(data_dir):
+    st.error(f"The directory `{data_dir}` does not exist. Please ensure processed data is available.")
+    st.stop()
 csv_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')]
-
 if not csv_files:
-    st.error("No CSV files found in `data/processed/`. Please add processed datasets.")
+    st.error(f"No CSV files found in `{data_dir}`. Please add processed datasets.")
     st.stop()
 
 @st.cache_data(ttl=600)
