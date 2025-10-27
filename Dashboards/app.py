@@ -1,18 +1,29 @@
 """
-Script Name: app.py
+Script: Dashboards/app.py
 Project: YouTube & TikTok Trends Dashboard
 
-Purpose:
-    Corporate-grade Streamlit dashboard for visualizing YouTube and TikTok trends
-    directly from cleaned CSV files in `data/processed/`.
+Description:
+This Streamlit application provides an interactive dashboard to explore and analyze engagement metrics from YouTube and TikTok datasets. 
+Users can select from multiple processed CSV datasets, filter data by platform and category, and toggle various visualizations to gain insights into video performance.
 
-Features:
-    - Dataset selection
-    - Dynamic filters for platform and category
-    - Top N videos selection
-    - Interactive and corporate-style visualizations
-    - KPIs at the top
-    - Cached data for performance
+Purpose:
+To offer a user-friendly interface for visualizing key metrics such as views, likes, comments, and engagement rates across different platforms and categories.
+
+Key Features:
+- Load multiple processed CSV datasets from `data/processed/`
+- Interactive sidebar for dataset selection and filtering by platform and category
+- Toggle various visualizations including views, likes, comments, and engagement rates
+- Display top N videos based on views
+- Professional styling with Streamlit, Matplotlib, Seaborn, and Plotly
+
+Dependencies:
+- streamlit
+- pandas
+- matplotlib
+- seaborn
+- plotly
+
+run with: `streamlit run Dashboards/app.py`
 """
 
 # ---------------------- Import Libraries ---------------------- #
