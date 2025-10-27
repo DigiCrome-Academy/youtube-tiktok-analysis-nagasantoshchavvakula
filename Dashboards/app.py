@@ -58,8 +58,11 @@ st.markdown(
 )
 st.markdown("---")
 
-# Loading datasets from data/processed/ whuch is outside Dashboards folder
-data_dir = os.path.join("data", "processed")
+# Absolute path to data folder relative to this app.py file
+Base_dir = os.path.dirname(os.path.abspath(__file__))
+data_dir = os.path.join(Base_dir, "..", "data", "processed")
+
+# Verify data directory exists
 if not os.path.exists(data_dir):
     st.error(f"The directory `{data_dir}` does not exist. Please ensure processed data is available.")
     st.stop()
@@ -68,6 +71,7 @@ if not csv_files:
     st.error(f"No CSV files found in `{data_dir}`. Please add processed datasets.")
     st.stop()
 
+#` ---------------------- Load CSV Datasets ---------------------- #
 @st.cache_data(ttl=600)
 def load_csv_files(files):
     dataframes = {}
@@ -79,7 +83,6 @@ def load_csv_files(files):
         except Exception as e:
             st.warning(f"Could not load {file}: {e}")
     return dataframes
-
 dataframes = load_csv_files(csv_files)
 
 # ------------------------------------- Sidebar ---------------------------------------------------------- #
